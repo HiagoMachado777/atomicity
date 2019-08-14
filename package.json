@@ -1,0 +1,27 @@
+{
+  "name": "atomicity",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HiagoMachado777/atomicity.git"
+  },
+  "author": "Hiago Machado",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/HiagoMachado777/atomicity/issues"
+  },
+  "homepage": "https://github.com/HiagoMachado777/atomicity#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.5.5",
+    "@babel/core": "^7.5.5",
+    "@babel/node": "^7.5.5",
+    "@babel/preset-env": "^7.5.5",
+    "jest": "^24.8.0",
+    "nodemon": "^1.19.1"
+  }
+}
