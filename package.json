@@ -17,10 +17,6 @@
   },
   "homepage": "https://github.com/HiagoMachado777/atomicity#readme",
   "devDependencies": {
-    "@babel/cli": "^7.5.5",
-    "@babel/core": "^7.5.5",
-    "@babel/node": "^7.5.5",
-    "@babel/preset-env": "^7.5.5",
     "jest": "^24.8.0",
     "nodemon": "^1.19.1"
   }
