@@ -1,9 +1,15 @@
 class Atomicity {
 
-  private MySQL: object;
-  private SQLServer: object;
-  private PostgreSQL: object;
-  private MongoDB: object; 
+  private MySQL: any;
+  private SQLServer: any;
+  private PostgreSQL: any;
+  private MongoDB: any; 
+  private MySQLTransaction: any;
+  private SQLServerTransaction: any;
+  private PostgreSQLTransaction: any;
+  private MongoDBTransaction: any;
+  private CallbackParams: any;
+  private ReadyToGo: boolean = false;
 
   constructor(params: any ) {
 
@@ -15,6 +21,8 @@ class Atomicity {
     if(sqlServer) this.setKnexSQLServerConnection(sqlServer);
     if(postgreSql) this.setKnexPostgreSQLConnection(postgreSql);
     if(mongoDb) this.setMongooseConnection(mongoDb);
+
+    this.ReadyToGo = true;
 
   }
 
@@ -67,6 +75,81 @@ class Atomicity {
     throw new Error('At least one database is required to start a transaction');
   }
 
+  public async transact(callback) {
+
+    const relationalsToTransact: string[] = [];
+
+    if(this.MySQL) relationalsToTransact.push('MySQL');
+    if(this.PostgreSQL) relationalsToTransact.push('PostgreSQL');
+    if(this.SQLServer) relationalsToTransact.push('SQLServer');
+
+    if(this.MongoDB && relationalsToTransact.length === 0) return this.simpleMongoTransaction(callback);
+
+    if(!this.MongoDB && relationalsToTransact.length === 1) {
+      const callbackResponse: any = await this.simpleRelationalTransaction(callback, relationalsToTransact[0]);
+      return callbackResponse;
+    };
+
+    if(!this.MongoDB && relationalsToTransact.length > 1) {
+
+      return;
+
+    }
+
+  }
+
+  private multipleRelationalTransactions(callback, relationalsToTransact) {
+    
+  }
+
+  private simpleRelationalTransaction(callback, relationalToTransact) {
+    
+    const trxName: string = `${relationalToTransact}Trx`;
+
+    return new Promise( (resolve, reject) => 
+
+      this[relationalToTransact].transaction(async trx => {
+
+        try {
+          const callbackResponse = await callback({ [trxName]: trx })
+          return trx.commit(callbackResponse)
+        }
+        catch (error) {
+          trx.rollback();
+          return reject(error);
+        }
+
+      })
+      .then((data) => resolve(data))
+      .catch(error => reject(error))
+    )
+  } 
+
+  private async simpleMongoTransaction(callback) {
+
+    this.MongoDBTransaction = await this.MongoDB.startSession();
+    this.MongoDBTransaction.startTransaction();  
+
+    this.mountCallbackParams();
+
+    const callbackResponse = callback(this.CallbackParams);
+
+    this.MongoDBTransaction.commitTransaction();
+
+    return callbackResponse;
+
+  }
+
+  private mountCallbackParams() {
+    this.CallbackParams = {};
+    if(this.MySQLTransaction) this.CallbackParams.mysqlTrx = this.MySQLTransaction;
+    if(this.PostgreSQLTransaction) this.CallbackParams.postgresqlTrx = this.PostgreSQLTransaction;
+    if(this.SQLServerTransaction) this.CallbackParams.sqlserverTrx = this.SQLServerTransaction;
+    if(this.MongoDBTransaction) this.CallbackParams.mongoSession = this.MongoDBTransaction;
+  }
+
+
+
 
 }
 
@@ -88,6 +171,33 @@ export default Atomicity;
               
 //       session.commitTransaction()
 //       return trx.commit(legacyResponse)
+//     })
+//     .then((data) => resolve(data))
+//     .catch(error => reject(error))
+//   )
+
+
+
+
+
+
+
+
+// export default (callback) => 
+//   new Promise( (resolve, reject) =>
+//     knex.transaction(async trx => {
+//       const session = await mongoose.startSession();
+//       session.startTransaction();      
+//       try {
+//         const callbackResponse = await callback(trx, session)
+//         session.commitTransaction()
+//         return trx.commit(callbackResponse)
+//       }
+//       catch (error) {
+//         trx.rollback();
+//         session.abortTransaction();
+//         return reject(error);
+//       }
 //     })
 //     .then((data) => resolve(data))
 //     .catch(error => reject(error))

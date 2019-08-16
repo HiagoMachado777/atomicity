@@ -1,5 +1,7 @@
+import knex from 'knex';
 import Atomicity from '../../src/Atomicity';
 
+jest.mock('knex');
 
 describe('Atomicity class should exists', () => {
 
@@ -33,15 +35,7 @@ describe('An error will be thrown with the message "At least one database is req
 
 describe.only('An invalid connection error will be thrown if:', () =>{
 
-  const invalidKnexConnection: object = {
-    _context: {
-      client: {
-        config: {
-          client: 'invalid'
-        }
-      }
-    }
-  }
+  const invalidKnexConnection: object = knex({client: 'invalid'});
 
   const invalidMongooseConnection: object = {
     connections: [

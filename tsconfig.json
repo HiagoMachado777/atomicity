@@ -5,7 +5,8 @@
     "declaration": true,
     "outDir": "./dist",
     "lib": [ "es5", "es6", "es7" ],
-    "downlevelIteration": true
+    "downlevelIteration": true,
+    "esModuleInterop": true
   },
   "include": [
     "src/**/*"
