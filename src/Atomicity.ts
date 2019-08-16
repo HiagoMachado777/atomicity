@@ -77,6 +77,8 @@ class Atomicity {
 
   public async transact(callback) {
 
+    if(!this.ReadyToGo) throw new Error('Atomicity instance is not configurated yet');
+
     const relationalsToTransact: string[] = [];
 
     if(this.MySQL) relationalsToTransact.push('MySQL');
@@ -100,18 +102,22 @@ class Atomicity {
 
   private multipleRelationalTransactions(callback, relationalsToTransact) {
     
+    
+
   }
 
   private simpleRelationalTransaction(callback, relationalToTransact) {
-    
-    const trxName: string = `${relationalToTransact}Trx`;
+
+    const clientTransactionName: string = `${relationalToTransact}Transaction` 
 
     return new Promise( (resolve, reject) => 
 
       this[relationalToTransact].transaction(async trx => {
 
         try {
-          const callbackResponse = await callback({ [trxName]: trx })
+          this[clientTransactionName] = trx;
+          this.mountCallbackParams();
+          const callbackResponse = await callback(this.CallbackParams)
           return trx.commit(callbackResponse)
         }
         catch (error) {
