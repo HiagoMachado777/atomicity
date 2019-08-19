@@ -1,3 +1,5 @@
+import _ from 'lodash';
+
 class Atomicity {
 
   private MySQL: any;
@@ -88,27 +90,35 @@ class Atomicity {
     if(this.MongoDB && relationalsToTransact.length === 0) return this.simpleMongoTransaction(callback);
 
     if(!this.MongoDB && relationalsToTransact.length === 1) {
+      
       const callbackResponse: any = await this.simpleRelationalTransaction(callback, relationalsToTransact[0]);
       return callbackResponse;
+
     };
 
     if(!this.MongoDB && relationalsToTransact.length > 1) {
 
-      return;
+      const callbackResponse: any = await this.atomize({ relationalsToTransact }, callback);
+      return callbackResponse;
+
+    }
+
+    if(this.MongoDB && relationalsToTransact.length > 1) {
+
+      const callbackResponse: any = await this.atomize({
+        relationalsToTransact,
+        isTransactingWithMongo: true
+      }, callback);
+      return callbackResponse;
 
     }
 
   }
 
-  private multipleRelationalTransactions(callback, relationalsToTransact) {
-    
-    
-
-  }
 
   private simpleRelationalTransaction(callback, relationalToTransact) {
 
-    const clientTransactionName: string = `${relationalToTransact}Transaction` 
+    const clientTransactionName: string = `${relationalToTransact}Transaction`;
 
     return new Promise( (resolve, reject) => 
 
@@ -117,8 +127,8 @@ class Atomicity {
         try {
           this[clientTransactionName] = trx;
           this.mountCallbackParams();
-          const callbackResponse = await callback(this.CallbackParams)
-          return trx.commit(callbackResponse)
+          const callbackResponse = await callback(this.CallbackParams);
+          return trx.commit(callbackResponse);
         }
         catch (error) {
           trx.rollback();
@@ -145,6 +155,87 @@ class Atomicity {
     return callbackResponse;
 
   }
+
+  private atomize(atomizeConfig, callback) {
+
+    const { relationalsToTransact, isTransactingWithMongo, isChildrenTransaction } = atomizeConfig
+
+    const atomizingRelational: string = relationalsToTransact[0];
+    const relationalsToAtomize: string[] = relationalsToTransact.filter(relational => relational !== atomizingRelational);
+    const clientTransactionName: string = `${atomizingRelational}Transaction`;
+
+    return new Promise( (resolve, reject) => 
+//TODO: Conditional when the transactions is 1-MONGO X 1 RELATIONAL
+      this[atomizingRelational].transaction(async trx => {
+
+        this[clientTransactionName] = trx;
+        this.mountCallbackParams();
+
+        if(isTransactingWithMongo) {
+          this.MongoDBTransaction = await this.MongoDB.startSession();
+          this.MongoDBTransaction.startTransaction();
+        }
+
+        if(!isChildrenTransaction) {
+          try {
+            
+            const callbackResponse = await this.atomize({
+              relationalsToTransact: relationalsToAtomize,
+              isChildrenTransaction: true
+            }, callback);
+            if(isTransactingWithMongo) this.MongoDBTransaction.commitTransaction();
+            return trx.commit(callbackResponse);
+
+          }
+          catch (error) {
+
+            trx.rollback();//TODO: Check if knex run rollback for nested transactions
+            if(isTransactingWithMongo) this.MongoDBTransaction.abortTransaction();
+            return reject(error);
+
+          }
+        }
+
+        else {
+
+          if(relationalsToAtomize.length > 0) {
+
+            const callbackResponse = await this.atomize({
+              relationalsToTransact: relationalsToAtomize,
+              isChildrenTransaction: true
+            }, callback);
+            return trx.commit(callbackResponse);
+
+          }
+
+          else {
+
+            const callbackResponse = await callback(this.CallbackParams);
+            return trx.commit(callbackResponse);
+
+          }
+        }
+
+      })
+      .then((data) => resolve(data))
+      .catch(error => reject(error))
+    )
+
+  }
+/*
+  private commitRelational(relationalsToCommit, callbackResponse) {
+    
+    for (let index: number = 0; index < relationalsToCommit.length; index++) {
+
+      const clientTransactionName: string = `${relationalsToCommit[index]}Transaction`;
+
+      if(index !== (relationalsToCommit.length - 1) && this[clientTransactionName]) this[clientTransactionName].commit(callbackResponse);
+      else if(this[clientTransactionName]) return this[clientTransactionName].commit(callbackResponse);
+      
+    }
+    
+  }
+*/
 
   private mountCallbackParams() {
     this.CallbackParams = {};
