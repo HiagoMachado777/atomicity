@@ -1,5 +1,3 @@
-import _ from 'lodash';
-
 class Atomicity {
 
   private MySQL: any;
@@ -31,24 +29,27 @@ class Atomicity {
   private setKnexMySQLConnection(knexMySQL: any):void {
     if(knexMySQL &&
       knexMySQL._context &&
-      knexMySQL._context.config &&
-      knexMySQL._context.config.client === 'mysql') this.MySQL = knexMySQL;
+      knexMySQL._context.client &&
+      knexMySQL._context.client.config &&
+      knexMySQL._context.client.config.client === 'mysql') this.MySQL = knexMySQL;
     else Atomicity.invalidConnectionError('MySQL');
   }
 
   private setKnexPostgreSQLConnection(knexPostgreSQL: any):void {
     if(knexPostgreSQL &&
       knexPostgreSQL._context &&
-      knexPostgreSQL._context.config &&
-      knexPostgreSQL._context.config.client === 'pg') this.PostgreSQL = knexPostgreSQL;
+      knexPostgreSQL._context.client &&
+      knexPostgreSQL._context.client.config &&
+      knexPostgreSQL._context.client.config.client === 'pg') this.PostgreSQL = knexPostgreSQL;
     else Atomicity.invalidConnectionError('PostgreSQL');
   }
 
   private setKnexSQLServerConnection(knexSQLServer: any):void {
     if(knexSQLServer &&
       knexSQLServer._context &&
-      knexSQLServer._context.config &&
-      knexSQLServer._context.config.client === 'mssql') this.SQLServer = knexSQLServer;
+      knexSQLServer._context.client &&
+      knexSQLServer._context.client.config &&
+      knexSQLServer._context.client.config.client === 'mssql') this.SQLServer = knexSQLServer;
     else Atomicity.invalidConnectionError('SQLServer');
   }
 
@@ -87,7 +88,12 @@ class Atomicity {
     if(this.PostgreSQL) relationalsToTransact.push('PostgreSQL');
     if(this.SQLServer) relationalsToTransact.push('SQLServer');
 
-    if(this.MongoDB && relationalsToTransact.length === 0) return this.simpleMongoTransaction(callback);
+    if(this.MongoDB && relationalsToTransact.length === 0) {
+
+      const callbackResponse = await this.simpleMongoTransaction(callback);
+      return callbackResponse;
+
+    }
 
     if(!this.MongoDB && relationalsToTransact.length === 1) {
       
@@ -97,7 +103,7 @@ class Atomicity {
     };
 
     if(!this.MongoDB && relationalsToTransact.length > 1) {
-
+      
       const callbackResponse: any = await this.atomize({ relationalsToTransact }, callback);
       return callbackResponse;
 
@@ -114,7 +120,6 @@ class Atomicity {
     }
 
   }
-
 
   private simpleRelationalTransaction(callback, relationalToTransact) {
 
@@ -157,85 +162,86 @@ class Atomicity {
   }
 
   private atomize(atomizeConfig, callback) {
+    try {
+      const { relationalsToTransact, isTransactingWithMongo, isChildrenTransaction } = atomizeConfig
 
-    const { relationalsToTransact, isTransactingWithMongo, isChildrenTransaction } = atomizeConfig
+      const atomizingRelational: string = relationalsToTransact[0];
+      const relationalsToAtomize: string[] = relationalsToTransact.filter(relational => relational !== atomizingRelational);
+      const clientTransactionName: string = `${atomizingRelational}Transaction`;
 
-    const atomizingRelational: string = relationalsToTransact[0];
-    const relationalsToAtomize: string[] = relationalsToTransact.filter(relational => relational !== atomizingRelational);
-    const clientTransactionName: string = `${atomizingRelational}Transaction`;
+      return new Promise( (resolve, reject) => 
+  //TODO: Conditional when the transactions is 1-MONGO X 1 RELATIONAL
+        this[atomizingRelational].transaction(async trx => {
 
-    return new Promise( (resolve, reject) => 
-//TODO: Conditional when the transactions is 1-MONGO X 1 RELATIONAL
-      this[atomizingRelational].transaction(async trx => {
+          this[clientTransactionName] = trx;
+          this.mountCallbackParams();
 
-        this[clientTransactionName] = trx;
-        this.mountCallbackParams();
-
-        if(isTransactingWithMongo) {
-          this.MongoDBTransaction = await this.MongoDB.startSession();
-          this.MongoDBTransaction.startTransaction();
-        }
-
-        if(!isChildrenTransaction) {
-          try {
-            
-            const callbackResponse = await this.atomize({
-              relationalsToTransact: relationalsToAtomize,
-              isChildrenTransaction: true
-            }, callback);
-            if(isTransactingWithMongo) this.MongoDBTransaction.commitTransaction();
-            return trx.commit(callbackResponse);
-
+          if(isTransactingWithMongo) {
+            this.MongoDBTransaction = await this.MongoDB.startSession();
+            this.MongoDBTransaction.startTransaction();
           }
-          catch (error) {
 
-            trx.rollback();//TODO: Check if knex run rollback for nested transactions
-            if(isTransactingWithMongo) this.MongoDBTransaction.abortTransaction();
-            return reject(error);
+          if(!isChildrenTransaction) {
+            try {
+              
+              const callbackResponse = await this.atomize({
+                relationalsToTransact: relationalsToAtomize,
+                isChildrenTransaction: true
+              }, callback);
+              if(isTransactingWithMongo) this.MongoDBTransaction.commitTransaction();
+              return trx.commit(callbackResponse);
 
-          }
-        }
+            }
+            catch (error) {
 
-        else {
+              trx.rollback();
+              if(isTransactingWithMongo) this.MongoDBTransaction.abortTransaction();
+              return reject(error);
 
-          if(relationalsToAtomize.length > 0) {
-
-            const callbackResponse = await this.atomize({
-              relationalsToTransact: relationalsToAtomize,
-              isChildrenTransaction: true
-            }, callback);
-            return trx.commit(callbackResponse);
-
+            }
           }
 
           else {
 
-            const callbackResponse = await callback(this.CallbackParams);
-            return trx.commit(callbackResponse);
+            if(relationalsToAtomize.length > 0) {
+              try {
+                const callbackResponse = await this.atomize({
+                  relationalsToTransact: relationalsToAtomize,
+                  isChildrenTransaction: true
+                }, callback);
+                return trx.commit(callbackResponse);
+              }
+              catch(error) {
+                await trx.rollback(error);
+                throw error;
+              }
 
+            }
+
+            else {
+              try {
+                const callbackResponse = await callback(this.CallbackParams);
+                return trx.commit(callbackResponse);
+              }
+              catch(error) {
+                await trx.rollback(error);
+                throw error;
+              }
+
+            }
           }
-        }
 
-      })
-      .then((data) => resolve(data))
-      .catch(error => reject(error))
-    )
-
-  }
-/*
-  private commitRelational(relationalsToCommit, callbackResponse) {
-    
-    for (let index: number = 0; index < relationalsToCommit.length; index++) {
-
-      const clientTransactionName: string = `${relationalsToCommit[index]}Transaction`;
-
-      if(index !== (relationalsToCommit.length - 1) && this[clientTransactionName]) this[clientTransactionName].commit(callbackResponse);
-      else if(this[clientTransactionName]) return this[clientTransactionName].commit(callbackResponse);
-      
+        })
+        .then((data) => resolve(data))
+        .catch(error => reject(error))
+      )
     }
-    
+
+    catch(error) {
+      throw error;
+    }
+
   }
-*/
 
   private mountCallbackParams() {
     this.CallbackParams = {};
@@ -245,57 +251,6 @@ class Atomicity {
     if(this.MongoDBTransaction) this.CallbackParams.mongoSession = this.MongoDBTransaction;
   }
 
-
-
-
 }
 
 export default Atomicity;
-
-
-
-// xport default (callback) => 
-//   new Promise( (resolve, reject) =>
-//     knex.transaction(async trx => {
-
-//       const session = await mongoose.startSession();
-//       session.startTransaction();         
-        
-//       const legacyResponse = await legacyDatabase.transaction(async legacyTrx => {   
-//         const callbackResponse = await callback(trx, session, legacyTrx)
-//         return legacyTrx.commit(callbackResponse)
-//       })
-              
-//       session.commitTransaction()
-//       return trx.commit(legacyResponse)
-//     })
-//     .then((data) => resolve(data))
-//     .catch(error => reject(error))
-//   )
-
-
-
-
-
-
-
-
-// export default (callback) => 
-//   new Promise( (resolve, reject) =>
-//     knex.transaction(async trx => {
-//       const session = await mongoose.startSession();
-//       session.startTransaction();      
-//       try {
-//         const callbackResponse = await callback(trx, session)
-//         session.commitTransaction()
-//         return trx.commit(callbackResponse)
-//       }
-//       catch (error) {
-//         trx.rollback();
-//         session.abortTransaction();
-//         return reject(error);
-//       }
-//     })
-//     .then((data) => resolve(data))
-//     .catch(error => reject(error))
-//   )
