@@ -109,7 +109,7 @@ class Atomicity {
 
     }
 
-    if(this.MongoDB && relationalsToTransact.length > 1) {
+    if(this.MongoDB && relationalsToTransact.length > 0) {
 
       const callbackResponse: any = await this.atomize({
         relationalsToTransact,
@@ -170,7 +170,7 @@ class Atomicity {
       const clientTransactionName: string = `${atomizingRelational}Transaction`;
 
       return new Promise( (resolve, reject) => 
-  //TODO: Conditional when the transactions is 1-MONGO X 1 RELATIONAL
+  
         this[atomizingRelational].transaction(async trx => {
 
           this[clientTransactionName] = trx;
@@ -183,17 +183,21 @@ class Atomicity {
 
           if(!isChildrenTransaction) {
             try {
-              
-              const callbackResponse = await this.atomize({
-                relationalsToTransact: relationalsToAtomize,
-                isChildrenTransaction: true
-              }, callback);
+              const callbackResponse = relationalsToAtomize.length > 0?
+                await this.atomize({
+                  relationalsToTransact: relationalsToAtomize,
+                  isTransactingWithMongo,
+                  isChildrenTransaction: true
+                }, callback)
+                :
+                await callback(this.CallbackParams);
+
               if(isTransactingWithMongo) this.MongoDBTransaction.commitTransaction();
               return trx.commit(callbackResponse);
 
             }
             catch (error) {
-
+              console.log('AAASASASASS::::', isTransactingWithMongo)
               trx.rollback();
               if(isTransactingWithMongo) this.MongoDBTransaction.abortTransaction();
               return reject(error);
