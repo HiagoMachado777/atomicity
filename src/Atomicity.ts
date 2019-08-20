@@ -148,7 +148,7 @@ class Atomicity {
   private async simpleMongoTransaction(callback) {
 
     this.MongoDBTransaction = await this.MongoDB.startSession();
-    this.MongoDBTransaction.startTransaction();  
+    this.MongoDBTransaction.startTransaction();
 
     this.mountCallbackParams();
 

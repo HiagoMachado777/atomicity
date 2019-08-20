@@ -17,4 +17,5 @@ module.exports = function({ client }) {
       }
       return callback(trx);
     })
-  })}
+  })
+}

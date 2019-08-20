@@ -1,7 +1,27 @@
 import knex from 'knex';
+import mongoose from 'mongoose';
 import Atomicity from '../../src/Atomicity';
 
 jest.mock('knex');
+jest.mock('mongoose');
+
+const mongooseFakeSession = {
+  startTransaction: jest.fn(),
+  commitTransaction: jest.fn()
+}
+
+const mongooseFakeCon = {
+  startSession: jest.fn().mockReturnValue(mongooseFakeSession),
+  connections: [
+    {
+      base: {
+        connections: [
+          { client: {} }
+        ]
+      }
+    }
+  ]
+}
 
 describe('Atomicity class should exists', () => {
 
@@ -33,23 +53,11 @@ describe('An error will be thrown with the message "At least one database is req
 
 })
 
-describe.only('An invalid connection error will be thrown if:', () =>{
+describe('An invalid connection error will be thrown if:', () =>{
 
   const invalidKnexConnection: object = knex({client: 'invalid'});
 
-  const invalidMongooseConnection: object = {
-    connections: [
-      {
-        base: [
-          {
-            connections: [
-              { client: undefined }
-            ]
-          }
-        ]
-      }
-    ]
-  }
+  const invalidMongooseConnection = mongoose;
   
   test('An invalid knex MySQL connection is passed', () => {
     expect((): any => new Atomicity({ mysql: invalidKnexConnection })).toThrow('Invalid knex MySQL connection')
@@ -65,6 +73,98 @@ describe.only('An invalid connection error will be thrown if:', () =>{
 
   test('An invalid mongoose connection is passed', () => {
     expect((): any => new Atomicity({ mongoDb: invalidMongooseConnection })).toThrow('Invalid mongoose connection')
+  })
+
+})
+
+describe('An Atomicity instance is correctly initialized when: ', () => {
+
+  test('Will not return de not configurated instance error', () => {
+
+    const atomic = new Atomicity({
+      mongoDb: mongooseFakeCon, 
+      mysql: knex({client: 'mysql'}),
+      postgreSql: knex({client: 'pg'})
+    })
+
+    expect(() => atomic.transact(() => { console.log('Callback') })).not.toThrow('Atomicity instance is not configurated yet');
+  })
+
+})
+
+describe.only('Test Atomicity strategy choice to different connections configurations', () => {
+
+  test('When only one knex connection is configured', async () => {
+
+    const fakeKnex = knex({client: 'mysql'})
+
+    const atomic = new Atomicity({ 
+      mysql: fakeKnex
+    })
+
+    const simpleRelationalTransactionSpy = jest.spyOn(Atomicity.prototype as any, 'simpleRelationalTransaction');
+
+    await atomic.transact(() => { console.log('Callback') });
+
+    expect(simpleRelationalTransactionSpy).toBeCalled();
+    expect(fakeKnex.transaction).toBeCalled();
+
+  })
+
+  test('When only the mongoose connection is configured', async () => {
+
+    const atomic = new Atomicity({
+      mongoDb: mongooseFakeCon
+    })
+
+    const simpleMongoTransactionSpy = jest.spyOn(Atomicity.prototype as any, 'simpleMongoTransaction');
+
+    await atomic.transact(() => { console.log('Callback') });
+
+    expect(simpleMongoTransactionSpy).toBeCalled();
+    expect(mongooseFakeCon.startSession).toBeCalled();
+    expect(mongooseFakeSession.startTransaction).toBeCalled();
+    expect(mongooseFakeSession.commitTransaction).toBeCalled();
+
+  })
+
+  test('When multiple knex connections are configured', async() => {
+
+    //TODO: Transform a callback into jest.fn()
+
+    // const fakeKnexMysql = knex({client: 'mysql'});
+    // const fakeKnexPg = knex({ client: 'pg' });
+
+    // const atomic = new Atomicity({ 
+    //   mysql: fakeKnexMysql,
+    //   postgreSql: fakeKnexPg
+    // });
+
+    // const atomizeSpy = jest.spyOn(Atomicity.prototype as any, 'atomize');
+
+    // await atomic.transact(() => { console.log('Callback') });
+
+    // expect(atomizeSpy).toBeCalledTimes(2);
+    // expect(atomizeSpy).toHaveBeenNthCalledWith(1, { relationalsToTransact: [ 'MySQL', 'PostgreSQL' ] }, jest.fn());
+    
+
+    
+
+    //this.atomize({ relationalsToTransact }, callback);
+
+
+
+    /*
+
+
+    await this.atomize({
+                  relationalsToTransact: relationalsToAtomize,
+                  isTransactingWithMongo,
+                  isChildrenTransaction: true
+                }, callback)
+
+    */
+
   })
 
 })
