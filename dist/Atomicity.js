@@ -213,77 +213,85 @@ var Atomicity = /** @class */ (function () {
                         switch (_c.label) {
                             case 0:
                                 this[clientTransactionName_1] = trx;
-                                this.mountCallbackParams();
-                                if (!isTransactingWithMongo_1) return [3 /*break*/, 2];
+                                if (!isTransactingWithMongo_1) return [3 /*break*/, 3];
                                 _a = this;
                                 return [4 /*yield*/, this.MongoDB.startSession()];
                             case 1:
                                 _a.MongoDBTransaction = _c.sent();
-                                this.MongoDBTransaction.startTransaction();
-                                _c.label = 2;
+                                return [4 /*yield*/, this.MongoDBTransaction.startTransaction()];
                             case 2:
-                                if (!!isChildrenTransaction_1) return [3 /*break*/, 10];
+                                _c.sent();
                                 _c.label = 3;
                             case 3:
-                                _c.trys.push([3, 8, , 9]);
-                                if (!(relationalsToAtomize_1.length > 0)) return [3 /*break*/, 5];
+                                this.mountCallbackParams();
+                                if (!!isChildrenTransaction_1) return [3 /*break*/, 15];
+                                _c.label = 4;
+                            case 4:
+                                _c.trys.push([4, 11, , 14]);
+                                if (!(relationalsToAtomize_1.length > 0)) return [3 /*break*/, 6];
                                 return [4 /*yield*/, this.atomize({
                                         relationalsToTransact: relationalsToAtomize_1,
                                         isTransactingWithMongo: isTransactingWithMongo_1,
                                         isChildrenTransaction: true
                                     }, callback)];
-                            case 4:
+                            case 5:
                                 _b = _c.sent();
-                                return [3 /*break*/, 7];
-                            case 5: return [4 /*yield*/, callback(this.CallbackParams)];
-                            case 6:
-                                _b = _c.sent();
-                                _c.label = 7;
+                                return [3 /*break*/, 8];
+                            case 6: return [4 /*yield*/, callback(this.CallbackParams)];
                             case 7:
-                                callbackResponse = _b;
-                                if (isTransactingWithMongo_1)
-                                    this.MongoDBTransaction.commitTransaction();
-                                return [2 /*return*/, trx.commit(callbackResponse)];
+                                _b = _c.sent();
+                                _c.label = 8;
                             case 8:
-                                error_2 = _c.sent();
-                                console.log('AAASASASASS::::', isTransactingWithMongo_1);
-                                trx.rollback();
-                                if (isTransactingWithMongo_1)
-                                    this.MongoDBTransaction.abortTransaction();
-                                return [2 /*return*/, reject(error_2)];
-                            case 9: return [3 /*break*/, 20];
-                            case 10:
-                                if (!(relationalsToAtomize_1.length > 0)) return [3 /*break*/, 16];
-                                _c.label = 11;
+                                callbackResponse = _b;
+                                if (!isTransactingWithMongo_1) return [3 /*break*/, 10];
+                                return [4 /*yield*/, this.MongoDBTransaction.commitTransaction()];
+                            case 9:
+                                _c.sent();
+                                _c.label = 10;
+                            case 10: return [2 /*return*/, trx.commit(callbackResponse)];
                             case 11:
-                                _c.trys.push([11, 13, , 15]);
+                                error_2 = _c.sent();
+                                if (!isTransactingWithMongo_1) return [3 /*break*/, 13];
+                                return [4 /*yield*/, this.MongoDBTransaction.abortTransaction()];
+                            case 12:
+                                _c.sent();
+                                _c.label = 13;
+                            case 13:
+                                trx.rollback();
+                                return [2 /*return*/, reject(error_2)];
+                            case 14: return [3 /*break*/, 25];
+                            case 15:
+                                if (!(relationalsToAtomize_1.length > 0)) return [3 /*break*/, 21];
+                                _c.label = 16;
+                            case 16:
+                                _c.trys.push([16, 18, , 20]);
                                 return [4 /*yield*/, this.atomize({
                                         relationalsToTransact: relationalsToAtomize_1,
                                         isChildrenTransaction: true
                                     }, callback)];
-                            case 12:
-                                callbackResponse = _c.sent();
-                                return [2 /*return*/, trx.commit(callbackResponse)];
-                            case 13:
-                                error_3 = _c.sent();
-                                return [4 /*yield*/, trx.rollback(error_3)];
-                            case 14:
-                                _c.sent();
-                                throw error_3;
-                            case 15: return [3 /*break*/, 20];
-                            case 16:
-                                _c.trys.push([16, 18, , 20]);
-                                return [4 /*yield*/, callback(this.CallbackParams)];
                             case 17:
                                 callbackResponse = _c.sent();
                                 return [2 /*return*/, trx.commit(callbackResponse)];
                             case 18:
-                                error_4 = _c.sent();
-                                return [4 /*yield*/, trx.rollback(error_4)];
+                                error_3 = _c.sent();
+                                return [4 /*yield*/, trx.rollback(error_3)];
                             case 19:
                                 _c.sent();
+                                throw error_3;
+                            case 20: return [3 /*break*/, 25];
+                            case 21:
+                                _c.trys.push([21, 23, , 25]);
+                                return [4 /*yield*/, callback(this.CallbackParams)];
+                            case 22:
+                                callbackResponse = _c.sent();
+                                return [2 /*return*/, trx.commit(callbackResponse)];
+                            case 23:
+                                error_4 = _c.sent();
+                                return [4 /*yield*/, trx.rollback(error_4)];
+                            case 24:
+                                _c.sent();
                                 throw error_4;
-                            case 20: return [2 /*return*/];
+                            case 25: return [2 /*return*/];
                         }
                     });
                 }); })

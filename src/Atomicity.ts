@@ -90,7 +90,7 @@ class Atomicity {
 
     if(this.MongoDB && relationalsToTransact.length === 0) {
 
-      const callbackResponse = await this.simpleMongoTransaction(callback);
+      const callbackResponse: any = await this.simpleMongoTransaction(callback);
       return callbackResponse;
 
     }
@@ -110,7 +110,6 @@ class Atomicity {
     }
 
     if(this.MongoDB && relationalsToTransact.length > 0) {
-
       const callbackResponse: any = await this.atomize({
         relationalsToTransact,
         isTransactingWithMongo: true
@@ -153,7 +152,7 @@ class Atomicity {
 
     this.mountCallbackParams();
 
-    const callbackResponse = callback(this.CallbackParams);
+    const callbackResponse: any = callback(this.CallbackParams);
 
     this.MongoDBTransaction.commitTransaction();
 
@@ -174,16 +173,17 @@ class Atomicity {
         this[atomizingRelational].transaction(async trx => {
 
           this[clientTransactionName] = trx;
-          this.mountCallbackParams();
 
           if(isTransactingWithMongo) {
             this.MongoDBTransaction = await this.MongoDB.startSession();
-            this.MongoDBTransaction.startTransaction();
+            await this.MongoDBTransaction.startTransaction();
           }
+
+          this.mountCallbackParams();
 
           if(!isChildrenTransaction) {
             try {
-              const callbackResponse = relationalsToAtomize.length > 0?
+              const callbackResponse: any = relationalsToAtomize.length > 0?
                 await this.atomize({
                   relationalsToTransact: relationalsToAtomize,
                   isTransactingWithMongo,
@@ -192,14 +192,13 @@ class Atomicity {
                 :
                 await callback(this.CallbackParams);
 
-              if(isTransactingWithMongo) this.MongoDBTransaction.commitTransaction();
+              if(isTransactingWithMongo) await this.MongoDBTransaction.commitTransaction();
               return trx.commit(callbackResponse);
 
             }
             catch (error) {
-              console.log('AAASASASASS::::', isTransactingWithMongo)
+              if(isTransactingWithMongo) await this.MongoDBTransaction.abortTransaction();
               trx.rollback();
-              if(isTransactingWithMongo) this.MongoDBTransaction.abortTransaction();
               return reject(error);
 
             }
@@ -209,7 +208,7 @@ class Atomicity {
 
             if(relationalsToAtomize.length > 0) {
               try {
-                const callbackResponse = await this.atomize({
+                const callbackResponse: any = await this.atomize({
                   relationalsToTransact: relationalsToAtomize,
                   isChildrenTransaction: true
                 }, callback);
@@ -224,7 +223,7 @@ class Atomicity {
 
             else {
               try {
-                const callbackResponse = await callback(this.CallbackParams);
+                const callbackResponse: any = await callback(this.CallbackParams);
                 return trx.commit(callbackResponse);
               }
               catch(error) {
