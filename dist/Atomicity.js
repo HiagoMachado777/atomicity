@@ -192,7 +192,9 @@ var Atomicity = /** @class */ (function () {
                         _a.MongoDBTransaction = _b.sent();
                         this.MongoDBTransaction.startTransaction();
                         this.mountCallbackParams();
-                        callbackResponse = callback(this.CallbackParams);
+                        return [4 /*yield*/, callback(this.CallbackParams)];
+                    case 2:
+                        callbackResponse = _b.sent();
                         this.MongoDBTransaction.commitTransaction();
                         return [2 /*return*/, callbackResponse];
                 }

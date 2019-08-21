@@ -151,7 +151,7 @@ class Atomicity {
 
     this.mountCallbackParams();
 
-    const callbackResponse: any = callback(this.CallbackParams);
+    const callbackResponse: any = await callback(this.CallbackParams);
 
     this.MongoDBTransaction.commitTransaction();
 
