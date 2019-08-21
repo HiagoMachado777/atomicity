@@ -231,7 +231,7 @@ var Atomicity = /** @class */ (function () {
                                 if (!(relationalsToAtomize_1.length > 0)) return [3 /*break*/, 6];
                                 return [4 /*yield*/, this.atomize({
                                         relationalsToTransact: relationalsToAtomize_1,
-                                        isTransactingWithMongo: isTransactingWithMongo_1,
+                                        //isTransactingWithMongo,
                                         isChildrenTransaction: true
                                     }, callback)];
                             case 5:

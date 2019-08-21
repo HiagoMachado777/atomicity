@@ -5,6 +5,10 @@ import Atomicity from '../../src/Atomicity';
 jest.mock('knex');
 jest.mock('mongoose');
 
+afterEach(() => {    
+  jest.clearAllMocks();
+});
+
 const mongooseFakeSession = {
   startTransaction: jest.fn(),
   commitTransaction: jest.fn()
@@ -87,16 +91,18 @@ describe('An Atomicity instance is correctly initialized when: ', () => {
       postgreSql: knex({client: 'pg'})
     })
 
-    expect(() => atomic.transact(() => { console.log('Callback') })).not.toThrow('Atomicity instance is not configurated yet');
+    expect(() => atomic.transact(() => {})).not.toThrow('Atomicity instance is not configurated yet');
   })
 
 })
 
-describe.only('Test Atomicity strategy choice to different connections configurations', () => {
+describe('Test Atomicity strategy choice to different connections configurations', () => {
 
-  test('When only one knex connection is configured', async () => {
+  test('When only one knex connection is configured the strategy should be simpleRelationalTransaction', async () => {
 
     const fakeKnex = knex({client: 'mysql'})
+
+    const callback = jest.fn();
 
     const atomic = new Atomicity({ 
       mysql: fakeKnex
@@ -104,14 +110,17 @@ describe.only('Test Atomicity strategy choice to different connections configura
 
     const simpleRelationalTransactionSpy = jest.spyOn(Atomicity.prototype as any, 'simpleRelationalTransaction');
 
-    await atomic.transact(() => { console.log('Callback') });
+    await atomic.transact(callback);
 
     expect(simpleRelationalTransactionSpy).toBeCalled();
     expect(fakeKnex.transaction).toBeCalled();
+    expect(callback).toBeCalled();
 
   })
 
-  test('When only the mongoose connection is configured', async () => {
+  test('When only the mongoose connection is configured the strategy should be simpleMongoTransaction', async () => {
+
+    const callback = jest.fn();
 
     const atomic = new Atomicity({
       mongoDb: mongooseFakeCon
@@ -119,52 +128,87 @@ describe.only('Test Atomicity strategy choice to different connections configura
 
     const simpleMongoTransactionSpy = jest.spyOn(Atomicity.prototype as any, 'simpleMongoTransaction');
 
-    await atomic.transact(() => { console.log('Callback') });
+    await atomic.transact(callback);
 
     expect(simpleMongoTransactionSpy).toBeCalled();
     expect(mongooseFakeCon.startSession).toBeCalled();
     expect(mongooseFakeSession.startTransaction).toBeCalled();
+    expect(callback).toBeCalled();
     expect(mongooseFakeSession.commitTransaction).toBeCalled();
 
   })
 
-  test('When multiple knex connections are configured', async() => {
+  test('When just multiple knex connections are configured the strategy should be atomize running just relational transactions', async() => {
 
-    //TODO: Transform a callback into jest.fn()
+    const fakeKnexMysql = knex({ client: 'mysql' });
+    const fakeKnexPg = knex({ client: 'pg' });
 
-    // const fakeKnexMysql = knex({client: 'mysql'});
-    // const fakeKnexPg = knex({ client: 'pg' });
+    const callback = jest.fn();
 
-    // const atomic = new Atomicity({ 
-    //   mysql: fakeKnexMysql,
-    //   postgreSql: fakeKnexPg
-    // });
+    const atomic = new Atomicity({ 
+      mysql: fakeKnexMysql,
+      postgreSql: fakeKnexPg
+    });
 
-    // const atomizeSpy = jest.spyOn(Atomicity.prototype as any, 'atomize');
+    const atomizeSpy = jest.spyOn(Atomicity.prototype as any, 'atomize');
 
-    // await atomic.transact(() => { console.log('Callback') });
+    await atomic.transact(callback);
 
-    // expect(atomizeSpy).toBeCalledTimes(2);
-    // expect(atomizeSpy).toHaveBeenNthCalledWith(1, { relationalsToTransact: [ 'MySQL', 'PostgreSQL' ] }, jest.fn());
-    
+    expect(atomizeSpy).toBeCalledTimes(2);
+    expect(atomizeSpy).toHaveBeenNthCalledWith(1, { relationalsToTransact: [ 'MySQL', 'PostgreSQL' ] }, callback);
+    expect(fakeKnexMysql.transaction).toBeCalled();
+    expect(atomizeSpy).toHaveBeenNthCalledWith(2, { relationalsToTransact: [ 'PostgreSQL' ], isChildrenTransaction: true }, callback);
+    expect(fakeKnexPg.transaction).toBeCalled();
+    expect(callback).toBeCalled();
 
-    
+  })
 
-    //this.atomize({ relationalsToTransact }, callback);
+  test('When one knex connection and one mongoose connection are configurated the strategy should be atomize running a relational and a mongo transaction', async () =>  {
+    const fakeKnexMysql = knex({ client: 'mysql' });
 
+    const callback = jest.fn();
 
+    const atomic = new Atomicity({
+      mysql: fakeKnexMysql,
+      mongoDb: mongooseFakeCon
+    })
 
-    /*
+    const atomizeSpy = jest.spyOn(Atomicity.prototype as any, 'atomize');
 
+    await atomic.transact(callback);
 
-    await this.atomize({
-                  relationalsToTransact: relationalsToAtomize,
-                  isTransactingWithMongo,
-                  isChildrenTransaction: true
-                }, callback)
+    expect(atomizeSpy).toBeCalledTimes(1);
+    expect(atomizeSpy).toBeCalledWith({ relationalsToTransact: [ 'MySQL' ], isTransactingWithMongo: true }, callback);
+    expect(fakeKnexMysql.transaction).toBeCalled();
+    expect(mongooseFakeCon.startSession).toBeCalled();
+    expect(mongooseFakeSession.startTransaction).toBeCalled();
+    expect(mongooseFakeSession.commitTransaction).toBeCalled();
+  })
 
-    */
+  test('When multiple knex connections and one mongoose connection are configurated the strategy should be atomize running multiple relationals transactions and a mongo transaction', async () =>  {
+    const fakeKnexMysql = knex({ client: 'mysql' });
+    const fakeKnexPg = knex({ client: 'pg' });
 
+    const callback = jest.fn();
+
+    const atomic = new Atomicity({
+      mysql: fakeKnexMysql,
+      postgreSql: fakeKnexPg,
+      mongoDb: mongooseFakeCon
+    })
+
+    const atomizeSpy = jest.spyOn(Atomicity.prototype as any, 'atomize');
+
+    await atomic.transact(callback);
+
+    expect(atomizeSpy).toBeCalledTimes(2);
+    expect(atomizeSpy).toHaveBeenNthCalledWith(1, { relationalsToTransact: [ 'MySQL', 'PostgreSQL' ], isTransactingWithMongo: true }, callback);
+    expect(atomizeSpy).toHaveBeenNthCalledWith(2, { relationalsToTransact: [ 'PostgreSQL' ], isChildrenTransaction: true }, callback)
+    expect(fakeKnexMysql.transaction).toBeCalled();
+    expect(fakeKnexPg.transaction).toBeCalled();
+    expect(mongooseFakeCon.startSession).toBeCalled();
+    expect(mongooseFakeSession.startTransaction).toBeCalled();
+    expect(mongooseFakeSession.commitTransaction).toBeCalled();
   })
 
 })

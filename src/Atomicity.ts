@@ -103,7 +103,6 @@ class Atomicity {
     };
 
     if(!this.MongoDB && relationalsToTransact.length > 1) {
-      
       const callbackResponse: any = await this.atomize({ relationalsToTransact }, callback);
       return callbackResponse;
 
@@ -186,7 +185,7 @@ class Atomicity {
               const callbackResponse: any = relationalsToAtomize.length > 0?
                 await this.atomize({
                   relationalsToTransact: relationalsToAtomize,
-                  isTransactingWithMongo,
+                  //isTransactingWithMongo,
                   isChildrenTransaction: true
                 }, callback)
                 :
