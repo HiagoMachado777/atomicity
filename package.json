@@ -1,0 +1,29 @@
+{
+  "name": "atomicity",
+  "version": "1.0.0",
+  "description": "AtomicityJS helps you ensure the atomicity of cross database transactions using high friendly code",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HiagoMachado777/atomicity.git"
+  },
+  "author": "Hiago Machado",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/HiagoMachado777/atomicity/issues"
+  },
+  "homepage": "https://github.com/HiagoMachado777/atomicity#readme",
+  "devDependencies": {
+    "@types/jest": "^24.0.17",
+    "@types/node": "^12.7.1",
+    "jest": "^24.8.0",
+    "knex": "^0.19.1",
+    "mongoose": "^5.6.9",
+    "ts-jest": "^24.0.2",
+    "typescript": "^3.5.3"
+  }
+}
