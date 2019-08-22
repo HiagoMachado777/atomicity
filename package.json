@@ -1,6 +1,6 @@
 {
   "name": "atomicity",
-  "version": "0.0.0",
+  "version": "0.3.2",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
