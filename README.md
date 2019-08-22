@@ -134,7 +134,7 @@ const transactionReturnedData = await atomic.transact( async ({ mysqlTrx, mongoS
 })
 ```
 
-How you can see, for each connection ( mysql, mongoDd ) a transaction reference (mysqlTrx, mongoSession) is injected in the param object of your callback.
+How you can see, for each connection ( mysql, mongoDb ) a transaction reference (mysqlTrx, mongoSession) is injected in the param object of your callback.
 
 The transact method also return your callback return.
 
@@ -213,6 +213,7 @@ The code will be something like this:
 
 ```javascript
 import Atomicity from 'atomicity';
+import mongoose from 'mongoose';
 import { mysqlKnex, sqlServerKnex } from './myDatabaseConfig';
 import { user } from './mongoModels';
 
