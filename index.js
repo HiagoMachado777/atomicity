@@ -1,3 +1,3 @@
-const Atomicity = require('./lib/Atomicity.js.js');
+const Atomicity = require('./lib/Atomicity.js');
 
 module.exports = Atomicity;
