@@ -1,6 +1,6 @@
 {
   "name": "atomicity",
-  "version": "0.3.2",
+  "version": "1.0.0",
   "description": "AtomicityJS helps you ensure the atomicity of cross database transactions using high friendly code",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
