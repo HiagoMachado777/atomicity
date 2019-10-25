@@ -1,12 +1,14 @@
+import RelationalsToTransactInfo from './RelationalsToTransactInfo';
+
 class Atomicity {
 
-  private MySQL: any;
-  private SQLServer: any;
-  private PostgreSQL: any;
+  private MySQL: any[] = [];
+  private SQLServer: any[] = [];
+  private PostgreSQL: any[] = [];
   private MongoDB: any; 
-  private MySQLTransaction: any;
-  private SQLServerTransaction: any;
-  private PostgreSQLTransaction: any;
+  private MySQLTransaction: any[] = [];
+  private SQLServerTransaction: any[] = [];
+  private PostgreSQLTransaction: any[] = [];
   private MongoDBTransaction: any;
   private CallbackParams: any;
   private ReadyToGo: boolean = false;
@@ -17,40 +19,13 @@ class Atomicity {
 
     const { mysql, sqlServer, postgreSql, mongoDb } = params;
 
-    if(mysql) this.setKnexMySQLConnection(mysql);
-    if(sqlServer) this.setKnexSQLServerConnection(sqlServer);
-    if(postgreSql) this.setKnexPostgreSQLConnection(postgreSql);
+    if(mysql) this.setKnexConnections(Atomicity.connectionsFormat(mysql), 'mysql', 'MySQL');
+    if(sqlServer) this.setKnexConnections(Atomicity.connectionsFormat(sqlServer), 'mssql', 'SQLServer');
+    if(postgreSql) this.setKnexConnections(Atomicity.connectionsFormat(postgreSql), 'pg', 'PostgreSQL');
     if(mongoDb) this.setMongooseConnection(mongoDb);
 
     this.ReadyToGo = true;
 
-  }
-
-  private setKnexMySQLConnection(knexMySQL: any):void {
-    if(knexMySQL &&
-      knexMySQL._context &&
-      knexMySQL._context.client &&
-      knexMySQL._context.client.config &&
-      knexMySQL._context.client.config.client === 'mysql') this.MySQL = knexMySQL;
-    else Atomicity.invalidConnectionError('MySQL');
-  }
-
-  private setKnexPostgreSQLConnection(knexPostgreSQL: any):void {
-    if(knexPostgreSQL &&
-      knexPostgreSQL._context &&
-      knexPostgreSQL._context.client &&
-      knexPostgreSQL._context.client.config &&
-      knexPostgreSQL._context.client.config.client === 'pg') this.PostgreSQL = knexPostgreSQL;
-    else Atomicity.invalidConnectionError('PostgreSQL');
-  }
-
-  private setKnexSQLServerConnection(knexSQLServer: any):void {
-    if(knexSQLServer &&
-      knexSQLServer._context &&
-      knexSQLServer._context.client &&
-      knexSQLServer._context.client.config &&
-      knexSQLServer._context.client.config.client === 'mssql') this.SQLServer = knexSQLServer;
-    else Atomicity.invalidConnectionError('SQLServer');
   }
 
   private setMongooseConnection(mongoose: any): void {
@@ -64,10 +39,33 @@ class Atomicity {
     else throw new Error('Invalid mongoose connection');
   }
 
+  private setKnexConnections(knexConnections: any[], clientName: string, atomicityRefName: string): void {
+    for (const knexConnection of knexConnections) {
+      if(knexConnection &&
+        knexConnection._context &&
+        knexConnection._context.client &&
+        knexConnection._context.client.config &&
+        knexConnection._context.client.config.client === clientName) this[atomicityRefName].push(knexConnection)
+      else Atomicity.invalidConnectionError(atomicityRefName);
+    }
+  }
+
   private static validateParams(params: any): void {
     if(!params) Atomicity.databaseIsRequiredError();
     const { mysql, sqlServer, postgreSql, mongoDb } = params;
-    if(!mysql && !sqlServer && !postgreSql && !mongoDb) Atomicity.databaseIsRequiredError();
+    if(!Atomicity.isValidParam(mysql) &&
+      !Atomicity.isValidParam(sqlServer) &&
+      !Atomicity.isValidParam(postgreSql) &&
+      mongoDb) Atomicity.databaseIsRequiredError();
+  }
+
+  private static isValidParam(param: any): boolean {
+    return ( Array.isArray(param) && param.length > 0 || param )
+  }
+
+  private static connectionsFormat(connections: any): any[] {
+    if(Array.isArray(connections)) return connections
+    return [connections]
   }
 
   private static invalidConnectionError(client: string): never {
@@ -82,39 +80,36 @@ class Atomicity {
 
     if(!this.ReadyToGo) throw new Error('Atomicity instance is not configurated yet');
 
-    const relationalsToTransact: string[] = [];
+    const relationalsToTransactInfo = new RelationalsToTransactInfo(this.MySQL, this.SQLServer, this.PostgreSQL);
 
-    if(this.MySQL) relationalsToTransact.push('MySQL');
-    if(this.PostgreSQL) relationalsToTransact.push('PostgreSQL');
-    if(this.SQLServer) relationalsToTransact.push('SQLServer');
+    const relationalsToTransact = relationalsToTransactInfo.countRelationalsToTransact();
 
-    if(this.MongoDB && relationalsToTransact.length === 0) {
+    if(this.MongoDB && relationalsToTransact === 0) {
 
       const callbackResponse: any = await this.simpleMongoTransaction(callback);
       return callbackResponse;
 
     }
 
-    if(!this.MongoDB && relationalsToTransact.length === 1) {
+    if(!this.MongoDB && relationalsToTransact === 1) {
       
-      const callbackResponse: any = await this.simpleRelationalTransaction(callback, relationalsToTransact[0]);
+      const callbackResponse: any = await this.simpleRelationalTransaction(callback, relationalsToTransactInfo.getClientNameFromUniqueTransactionToExecute());
       return callbackResponse;
 
     };
 
-    if(!this.MongoDB && relationalsToTransact.length > 1) {
-      const callbackResponse: any = await this.atomize({ relationalsToTransact }, callback);
+    if(!this.MongoDB && relationalsToTransact > 1) {
+      const callbackResponse: any = await this.atomize({ relationalsToTransactInfo }, callback);
       return callbackResponse;
 
     }
 
-    if(this.MongoDB && relationalsToTransact.length > 0) {
+    if(this.MongoDB && relationalsToTransact > 0) {
       const callbackResponse: any = await this.atomize({
-        relationalsToTransact,
+        relationalsToTransactInfo,
         isTransactingWithMongo: true
       }, callback);
       return callbackResponse;
-
     }
 
   }
@@ -161,10 +156,10 @@ class Atomicity {
 
   private atomize(atomizeConfig, callback) {
     try {
-      const { relationalsToTransact, isTransactingWithMongo, isChildrenTransaction } = atomizeConfig
+      const { relationalsToTransactInfo, isTransactingWithMongo, isChildrenTransaction } = atomizeConfig
 
-      const atomizingRelational: string = relationalsToTransact[0];
-      const relationalsToAtomize: string[] = relationalsToTransact.filter(relational => relational !== atomizingRelational);
+      const atomizingRelational: string = relationalsToTransactInfo[0];
+      const relationalsToAtomize: string[] = relationalsToTransactInfo.filter(relational => relational !== atomizingRelational);
       const clientTransactionName: string = `${atomizingRelational}Transaction`;
 
       return new Promise( (resolve, reject) => 
@@ -184,8 +179,7 @@ class Atomicity {
             try {
               const callbackResponse: any = relationalsToAtomize.length > 0?
                 await this.atomize({
-                  relationalsToTransact: relationalsToAtomize,
-                  //isTransactingWithMongo,
+                  relationalsToTransactInfo: relationalsToAtomize,
                   isChildrenTransaction: true
                 }, callback)
                 :
@@ -208,7 +202,7 @@ class Atomicity {
             if(relationalsToAtomize.length > 0) {
               try {
                 const callbackResponse: any = await this.atomize({
-                  relationalsToTransact: relationalsToAtomize,
+                  relationalsToTransactInfo: relationalsToAtomize,
                   isChildrenTransaction: true
                 }, callback);
                 return trx.commit(callbackResponse);
